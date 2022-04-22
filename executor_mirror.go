@@ -19,12 +19,12 @@ func MirrorExtract(raw string) []string {
 	return match1
 }
 
-func GetMirrorConfig() (string, error) {
+func GetMirrorConfig() string {
 	var sock mangos.Socket
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// make data format
 	var hdr []byte
@@ -35,10 +35,9 @@ func GetMirrorConfig() (string, error) {
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
 
-	return res, err
+	return res
 }
 
-// TODO:
 func GetMirrorModel() EthernetNeighborReturnModel {
 	var sock mangos.Socket
 	var EthernetNeighbor []EthernetNeighborCLIModel
@@ -104,10 +103,11 @@ func ParseMirrorConfig(res string) [][]string {
 
 // AddMirrorSpanConfig 는 SPAN 미러링 아웃풋 포트 및 설정을 추가합니다.
 func AddMirrorSpanConfig(MirrorId int, OutInterfaceName string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// choose cmd
 	cmd := uint8(LOXILIGHT_MIRROR_ADD)
@@ -119,17 +119,18 @@ func AddMirrorSpanConfig(MirrorId int, OutInterfaceName string) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // AddMirrorRspanConfig 는 RSPAN미러링 아웃풋 포트 및 설정을 추가합니다.
 func AddMirrorRspanConfig(MirrorId int, OutInterfaceName string, VlanId int) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// choose cmd
 	cmd := uint8(LOXILIGHT_MIRROR_ADD)
@@ -141,17 +142,18 @@ func AddMirrorRspanConfig(MirrorId int, OutInterfaceName string, VlanId int) err
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelMirrorConfig 는 미러링 아웃풋 포트 및 설정을 삭제합니다.
 func DelMirrorConfig(MirrorId int) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// choose cmd
 	cmd := uint8(LOXILIGHT_MIRROR_DEL)
@@ -163,17 +165,18 @@ func DelMirrorConfig(MirrorId int) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // AddMirrorPortConfig 는 미러링 포트를 추가합니다.
 func AddMirrorPortConfig(MirrorId int, InterfaceName string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// choose cmd
 	cmd := uint8(LOXILIGHT_MIRROR_PORT_ADD)
@@ -185,17 +188,18 @@ func AddMirrorPortConfig(MirrorId int, InterfaceName string) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelMirrorPortConfig 는 미러링 포트를 삭제합니다.
 func DelMirrorPortConfig(MirrorId int, InterfaceName string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// choose cmd
 	cmd := uint8(LOXILIGHT_MIRROR_PORT_DEL)
@@ -207,7 +211,7 @@ func DelMirrorPortConfig(MirrorId int, InterfaceName string) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }

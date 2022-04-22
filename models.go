@@ -166,7 +166,7 @@ type IProuteCLIModel struct {
 	Interface  string `json:"interface,omitempty"`
 	NextHop    string `json:"next_hop,omitempty"`
 	IsInstall  string `json:"is_install"`
-	IsHareWare string `json:"hw_install"`
+	IsHareWare string `json:"hw_install,omitempty"`
 }
 
 type IProuteModel struct {
@@ -259,7 +259,7 @@ type IpsecDeleteModel struct {
 }
 
 type LoxilightMgmtReturnModel struct {
-	LoxilightMgmtIp string `json:"loxilightmgmtIp"`
+	LoxilightMgmtIp string `json:"loxilight_mgmt_ip"`
 }
 type PingRequestModel struct {
 	IpAddress string `json:"ip_addr"`

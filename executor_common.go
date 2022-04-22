@@ -1,5 +1,6 @@
 /*
 package commonLib
+
 nanomsg를 통해 LOXILIGHT코어에 API를 전송하는 함수를 모아놓은 라이브러리입니다.
 디폴트 서버 주소는 127.0.0.1입니다.
 
@@ -8,6 +9,7 @@ package commonLib
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -17,7 +19,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"go.nanomsg.org/mangos/v3"
-	"go.nanomsg.org/mangos/v3/protocol/pair"
+	"go.nanomsg.org/mangos/v3/protocol/req"
 	_ "go.nanomsg.org/mangos/v3/transport/all"
 )
 
@@ -113,6 +115,7 @@ const (
 	LOXILIGHT_MIRROR_SHOW                              /* MIRROR show */
 	LOXILIGHT_ACL_ADD                                  /* ACL add */
 	LOXILIGHT_ACL_DEL                                  /* ACL del */
+	LOXILIGHT_ACL_DEL_ALL                              /* ACL del all */
 	LOXILIGHT_ACL_SHOW                                 /* ACL show */
 	LOXILIGHT_CT_SHOW                                  /* Connection tracking show */
 	LOXILIGHT_APPFLOW_SHOW                             /* Cache flow show */
@@ -134,8 +137,8 @@ func GetConnection(url string) (mangos.Socket, error) {
 	var sock mangos.Socket
 	var err error
 
-	if sock, err = pair.NewSocket(); err != nil {
-		die("can't get new pair socket: %s", err.Error())
+	if sock, err = req.NewSocket(); err != nil {
+		die("can't get new req socket: %s", err.Error())
 	}
 	if err = sock.Dial(url); err != nil {
 		die("can't dial on req socket: %s", err.Error())
@@ -148,8 +151,8 @@ func GetConnectionCheck(url string) error {
 	var sock mangos.Socket
 	var err error
 
-	if sock, err = pair.NewSocket(); err != nil {
-		die("can't get new pair socket: %s", err.Error())
+	if sock, err = req.NewSocket(); err != nil {
+		die("can't get new req socket: %s", err.Error())
 	}
 	if err = sock.Dial(url); err != nil {
 		die("can't dial on req socket: %s", err.Error())
@@ -183,8 +186,7 @@ func ChangeHexIpToDec(hexip string) string {
 	return fmt.Sprintf("%d.%d.%d.%d", one, two, three, four)
 }
 
-// OldSendMessage 는 req로 nanomsg를 전송 했을 경우입니다.
-func OldSendMessage(sock mangos.Socket, txt_msg []byte) string {
+func SendMessage(sock mangos.Socket, txt_msg []byte) string {
 	var err error
 	var msg []byte
 
@@ -196,30 +198,6 @@ func OldSendMessage(sock mangos.Socket, txt_msg []byte) string {
 	}
 	sock.Close()
 	return string(msg[8:])
-}
-
-func SendMessage(sock mangos.Socket, txt_msg []byte) string {
-	var err error
-	var msg []byte
-	var RealData []byte
-
-	if err = sock.Send(txt_msg); err != nil {
-		die("can't send message on push socket: %s", err.Error())
-	}
-	for {
-		if msg, err = sock.Recv(); err != nil {
-			die("can't receive date: %s", err.Error())
-		}
-		RealData = append(RealData, msg[8:]...)
-		if msg[1] == LOXILIGHT_SERVICE_SUCCESS {
-			break
-		} else if msg[1] == LOXILIGHT_SERVICE_ERROR {
-			die("can't recieve message on push socket: %s", err.Error())
-			break
-		}
-	}
-	sock.Close()
-	return string(RealData)
 }
 
 func CloseConnection(sock mangos.Socket) {
@@ -278,35 +256,14 @@ func ShowVersion() {
 
 }
 
-func GetRunningConfig() (string, error) {
-	fdb, err := GetFdbConfig()
-	if err != nil {
-		return "Get FDB Fail", err
-	}
-	vxfdb, err := GetVxFdbConfig()
-	if err != nil {
-		return "Get VXFDB Fail", err
-	}
-	route, err := GetIpRouteConfig()
-	if err != nil {
-		return "Get Route Fail", err
-	}
-	neigh, err := GetIpNeighborConfig()
-	if err != nil {
-		return "Get Neigh Fail", err
-	}
-	ipsec, err := GetIpsecConfig()
-	if err != nil {
-		return "Get IPSEC Fail", err
-	}
-	vlan, err := GetVlanBriefData()
-	if err != nil {
-		return "Get VLAN Fail", err
-	}
-	vxlan, err := GetVxlanBriefConfig()
-	if err != nil {
-		return "Get VXLAN Fail", err
-	}
+func GetRunningConfig() string {
+	fdb := GetFdbConfig()
+	vxfdb := GetVxFdbConfig()
+	route := GetIpRouteConfig()
+	neigh := GetIpNeighborConfig()
+	ipsec := GetIpsecConfig()
+	vlan := GetVlanBriefData()
+	vxlan := GetVxlanBriefConfig()
 
 	ret := fmt.Sprintf(`-FDB-\n%s\n-FDBEND-\n
 						-VXFDB-\n%s\n-VXFDBEND-\n
@@ -316,7 +273,7 @@ func GetRunningConfig() (string, error) {
 						-VLAN-\n%s\n-VLANEND-\n
 						-VXLAN-\n%s\n-VXLANEND-\n
 						`, fdb, vxfdb, route, neigh, ipsec, vlan, vxlan)
-	return ret, err
+	return ret
 }
 
 func ShowStartupConfig() {
@@ -428,4 +385,54 @@ func ntohl(buf []byte) uint32 {
 
 func ntohs(buf []byte) uint16 {
 	return binary.BigEndian.Uint16(buf)
+}
+
+// GetHealthCheckConfig는 모든 Health 정보를 리턴합니다.
+func GetHealthCheckConfig() error {
+	var msg []byte
+
+	sock, err := GetConnection(LoxilightMgmtIp)
+	if err != nil {
+		fmt.Println("Please check your Core APP and CLI network status")
+		return err
+	}
+	// Send msg and return value
+
+	cmd := uint8(LOXILIGHT_SERVICE_ECHO)
+	_, hdr := MakeMessage(cmd, "")
+	if err = sock.Send(hdr); err != nil {
+		die("can't send message on push socket: %s", err.Error())
+	}
+	if msg, err = sock.Recv(); err != nil {
+		die("can't receive date: %s", err.Error())
+	}
+	sock.Close()
+	if msg[1] == LOXILIGHT_SERVICE_SUCCESS {
+		err = nil
+	} else {
+		err = errors.New("Health Error!")
+	}
+	return err
+}
+
+func HexToIPString(hexip string) string {
+	for len(hexip) < 8 {
+		hexip = "0" + hexip
+	}
+	a, err := hex.DecodeString(hexip)
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("%v.%v.%v.%v", a[0], a[1], a[2], a[3])
+}
+
+func HexToIPBackString(hexip string) string {
+	for len(hexip) < 8 {
+		hexip = "0" + hexip
+	}
+	a, err := hex.DecodeString(hexip)
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("%v.%v.%v.%v", a[3], a[2], a[1], a[0])
 }

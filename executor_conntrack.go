@@ -39,11 +39,11 @@ func ConntrackStatExtract(raw string) []string {
 }
 
 // GetConntrackConfig는 모든 Conntrack의 정보를 리턴합니다.
-func GetConntrackConfig() (string, error) {
+func GetConntrackConfig() string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// Send msg and return value
 
@@ -51,18 +51,15 @@ func GetConntrackConfig() (string, error) {
 	_, hdr := MakeMessage(cmd, "")
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
-	return res, err
+	return res
 
 }
 
-func GetConntrackModel() (ConntrackReturnModel, error) {
+func GetConntrackModel() ConntrackReturnModel {
 	var Conntrack []ConntrackModel
 	var ConntrackReturn ConntrackReturnModel
 
-	connt, err := GetConntrackConfig()
-	if err != nil {
-		return ConntrackReturn, err
-	}
+	connt := GetConntrackConfig()
 	for _, v := range strings.Split(connt, "\r\n") {
 		raw_data := ConntrackExtract(v)
 		if len(raw_data) > 10 {
@@ -103,7 +100,7 @@ func GetConntrackModel() (ConntrackReturnModel, error) {
 		}
 	}
 	ConntrackReturn.Attr = Conntrack
-	return ConntrackReturn, err
+	return ConntrackReturn
 
 }
 
@@ -126,7 +123,7 @@ func ParseConntrackData(res string) [][]string {
 // ShowConntrackConfig 는 모든 Conntrack 의 간략한 정보를 CLI 테이블로 변환하여 보여줍니다.
 func ShowConntrackConfig() {
 	// Get_data
-	res, _ := GetConntrackConfig()
+	res := GetConntrackConfig()
 	data := ParseConntrackData(res)
 	// Make a table to display
 	makeTable(TitleConntrack, data)

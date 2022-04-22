@@ -23,11 +23,11 @@ func VxlanExtract(raw string) []string {
 }
 
 // GetVxlanBriefConfig 는 설정된 간략한 VxLAN 정보를 리턴합니다.
-func GetVxlanBriefConfig() (string, error) {
+func GetVxlanBriefConfig() string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// Send msg and return value
 	cmd := uint8(LOXILIGHT_VXBR_SHOW_ALL)
@@ -35,33 +35,15 @@ func GetVxlanBriefConfig() (string, error) {
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
 
-	return res, err
+	return res
 
-}
-
-// ShowVxlanBriefConfig 는 설정된 간략한 vxlan 정보를 보여줍니다.
-func ShowVxlanBriefConfig() {
-	res, _ := GetVxlanBriefConfig()
-	data := ParseVxlanBriefConfig(res)
-	makeTable(TitleVxlanBrief, data)
-}
-
-// ShowVxlanIdConfig 는 자세한 vxlan 정보를 보여줍니다.
-func ShowVxlanIdConfig(vxlan_id int) {
-	raw, _ := GetVxlanIdConfig(vxlan_id)
-	data := ParseVxlanIdConfig(raw)
-	// Make a table to display
-	makeTable(TitleVxlanDetail, data)
 }
 
 // GetVxlanBriefModel 는 설정된 간략한 VxLAN 정보를 모델로 리턴합니다.
-func GetVxlanBriefModel() (VxlanReturnModel, error) {
+func GetVxlanBriefModel() VxlanReturnModel {
 	var Vxlans []VxlanModel
 	var VxlansReturn VxlanReturnModel
-	raw_vxlan, err := GetVxlanBriefConfig()
-	if err != nil {
-		return VxlansReturn, err
-	}
+	raw_vxlan := GetVxlanBriefConfig()
 	for _, r_vxlan := range strings.Split(raw_vxlan, "\r\n") {
 		raw_data := VxlanExtract(r_vxlan)
 		if len(raw_data) > 0 {
@@ -80,7 +62,7 @@ func GetVxlanBriefModel() (VxlanReturnModel, error) {
 		}
 	}
 	VxlansReturn.Attr = Vxlans
-	return VxlansReturn, err
+	return VxlansReturn
 }
 
 func ParseVxlanBriefConfig(res string) [][]string {
@@ -102,12 +84,54 @@ func ParseVxlanBriefConfig(res string) [][]string {
 	return data
 }
 
-// GetVxlanIdConfig 는 자세한 vxlan 정보를 리턴합니다.
-func GetVxlanIdConfig(vxlan_id int) (string, error) {
+// ShowVxlanBriefConfig 는 설정된 간략한 vxlan 정보를 보여줍니다.
+func ShowVxlanBriefConfig() {
+	res := GetVxlanBriefConfig()
+	data := ParseVxlanBriefConfig(res)
+	makeTable(TitleVxlanBrief, data)
+}
+
+// GetVxlanVtepConfig 는 설정된 간략한 vtep 정보를 리턴합니다. 현재는 작동하지 않습니다.
+func GetVxlanVtepConfig() [][]string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return [][]string{}
+	}
+	// Send msg and return value
+	var row_data []string
+	var data [][]string
+	cmd := uint8(LOXILIGHT_VTEP_SHOW_ALL)
+	_, hdr := MakeMessage(cmd, "")
+	res := SendMessage(sock, hdr)
+
+	// Parse the response to Data
+	raw := strings.Split(res, "\r\n")
+	// 각각의 기준이 VxLAN ID 한개 기준.
+	for _, rd := range raw {
+		row_data = VxlanExtract(rd)
+		//fmt.Println(row_data)
+		if len(row_data) != 0 {
+			tmp_row := []string{row_data[0], row_data[1], row_data[2], row_data[3], row_data[4], row_data[5], row_data[6]}
+			data = append(data, tmp_row)
+
+		}
+	}
+	return data
+}
+
+// ShowVxlanVtepConfig 는 설정된 간략한 vtep 정보를 보여줍니다. 현재는 작동하지 않습니다.
+func ShowVxlanVtepConfig() {
+	data := GetVxlanVtepConfig()
+	makeTable(TitleVxlanDetail, data)
+}
+
+// GetVxlanIdConfig 는 자세한 vxlan 정보를 리턴합니다.
+func GetVxlanIdConfig(vxlan_id int) string {
+	sock, err := GetConnection(LoxilightMgmtIp)
+	if err != nil {
+		fmt.Println("Please check your Core APP and CLI network status")
+		return ""
 	}
 	// Send msg and return value
 	var hdr []byte
@@ -116,16 +140,13 @@ func GetVxlanIdConfig(vxlan_id int) (string, error) {
 	_, hdr = MakeMessage(cmd, msg)
 	res := SendMessage(sock, hdr)
 
-	return res, err
+	return res
 }
 
 // GetVxlanIdConfig 는 1개의 vxlan 정보를 모델로 리턴합니다.
-func GetVxlanIdModel(vxlan_id int) (VxlanModel, error) {
+func GetVxlanIdModel(vxlan_id int) VxlanModel {
 	var output VxlanModel
-	raw_vxlan, err := GetVxlanIdConfig(vxlan_id)
-	if err != nil {
-		return output, err
-	}
+	raw_vxlan := GetVxlanIdConfig(vxlan_id)
 	raw_data := VxlanExtract(raw_vxlan)
 	if len(raw_data) > 5 {
 		VxlanID, _ := strconv.Atoi(raw_data[1])
@@ -141,7 +162,7 @@ func GetVxlanIdModel(vxlan_id int) (VxlanModel, error) {
 			Mac:       raw_data[6],
 		}
 	}
-	return output, err
+	return output
 }
 
 func ParseVxlanIdConfig(res string) [][]string {
@@ -163,12 +184,21 @@ func ParseVxlanIdConfig(res string) [][]string {
 	return data
 }
 
+// ShowVxlanIdConfig 는 자세한 vxlan 정보를 보여줍니다.
+func ShowVxlanIdConfig(vxlan_id int) {
+	raw := GetVxlanIdConfig(vxlan_id)
+	data := ParseVxlanIdConfig(raw)
+	// Make a table to display
+	makeTable(TitleVxlanDetail, data)
+}
+
 // AddVxlanBridgeWithoutVlanID는 vxlan을 추가하는 함수입니다.
 func AddVxlanBridgeWithoutVlanID(vxlan_id int, interface_name string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s", vxlan_id, interface_name)
 	// make Message
@@ -177,17 +207,18 @@ func AddVxlanBridgeWithoutVlanID(vxlan_id int, interface_name string) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // AddVxlanBridgeWithVlanID는 vxlan을 추가하는 함수입니다.
 func AddVxlanBridgeWithVlanID(vxlan_id int, interface_name string, vlan_id int) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s %d", vxlan_id, interface_name, vlan_id)
 	// make Message
@@ -196,17 +227,18 @@ func AddVxlanBridgeWithVlanID(vxlan_id int, interface_name string, vlan_id int) 
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelVxlanBridge는 vxlan을 삭제하는 함수입니다.
 func DelVxlanBridge(vxlan_id int) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d", vxlan_id)
 	// make Messgae
@@ -216,17 +248,18 @@ func DelVxlanBridge(vxlan_id int) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // AddVxlanPeer 는 vxlan의 remote ip 주소를 추가하는 함수입니다.
 func AddVxlanPeer(vxlan_id int, remote_ip string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s", vxlan_id, remote_ip)
 	// make Message
@@ -236,17 +269,18 @@ func AddVxlanPeer(vxlan_id int, remote_ip string) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelVxlanPeer 는 vxlan의 remote ip 주소를 삭제하는 함수입니다.
 func DelVxlanPeer(vxlan_id int, remote_ip string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s", vxlan_id, remote_ip)
 	// make Header
@@ -256,17 +290,18 @@ func DelVxlanPeer(vxlan_id int, remote_ip string) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // AddVxlanMember는 호스트부분의 vxlan 설정을 추가하는 함수입니다.
 func AddVxlanMember(vxlan_id int, interface_name string, tagging_status string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s %s", vxlan_id, interface_name, tagging_status)
 	// make Message
@@ -276,17 +311,18 @@ func AddVxlanMember(vxlan_id int, interface_name string, tagging_status string) 
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelVxlanMember는 호스트부분의 vxlan 설정을 삭제하는 함수입니다.
 func DelVxlanMember(vxlan_id int, interface_name string, tagging_status string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s %s", vxlan_id, interface_name, tagging_status)
 	// make Header
@@ -296,7 +332,7 @@ func DelVxlanMember(vxlan_id int, interface_name string, tagging_status string) 
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }

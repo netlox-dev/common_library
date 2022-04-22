@@ -7,12 +7,12 @@ import (
 	"go.nanomsg.org/mangos/v3"
 )
 
-func GetIpsecConfig() (string, error) {
+func GetIpsecConfig() string {
 	var sock mangos.Socket
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// make data format
 	var hdr []byte
@@ -27,7 +27,7 @@ func GetIpsecConfig() (string, error) {
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
 
-	return res, err
+	return res
 }
 
 func ShowIpsecConfig() {
@@ -55,10 +55,11 @@ func ShowIpsecConfig() {
 }
 
 func AddIpsecConfig(source_ip string, destination_ip string, protocol string, spi string, direction string, reqid string, key string, key_len string, interface_name string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// choose cmd
 	cmd := uint8(LOXILIGHT_IPSEC_POLICY_ADD)
@@ -69,16 +70,17 @@ func AddIpsecConfig(source_ip string, destination_ip string, protocol string, sp
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 func DelIpsecConfig(source_ip string, destination_ip string, protocol string, spi string, direction string) error {
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// make data format
 	cmd := uint8(LOXILIGHT_IPSEC_POLICY_DEL)
@@ -88,7 +90,7 @@ func DelIpsecConfig(source_ip string, destination_ip string, protocol string, sp
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }

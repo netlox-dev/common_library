@@ -97,11 +97,11 @@ func VlanPortDetailExtract(raw string, tagged string) []string {
 }
 
 // GetVlanBriefData는 모든 vlan의 정보를 리턴합니다.
-func GetVlanBriefData() (string, error) {
+func GetVlanBriefData() string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// Send msg and return value
 
@@ -110,7 +110,7 @@ func GetVlanBriefData() (string, error) {
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
 
-	return res, err
+	return res
 
 }
 
@@ -148,18 +148,18 @@ func ParseVlanBridgeData(res string) [][]string {
 // ShowVlanBriefConfig 는 모든 vlan 의 간략한 정보를 보여줍니다.
 func ShowVlanBriefConfig() {
 	// Get_data
-	res, _ := GetVlanBriefData()
+	res := GetVlanBriefData()
 	data := ParseVlanBridgeData(res)
 	// Make a table to display
 	makeTable(TitleVlanBrief, data)
 }
 
 // GetVlanIdConfig 는 한 개의 vlan의 자세한 정보를 리턴합니다.
-func GetVlanIdConfig(vlan_id int) (string, error) {
+func GetVlanIdConfig(vlan_id int) string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// Send msg and return value
 	var hdr []byte
@@ -168,7 +168,7 @@ func GetVlanIdConfig(vlan_id int) (string, error) {
 	_, hdr = MakeMessage(cmd, msg)
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
-	return res, err
+	return res
 
 }
 
@@ -221,13 +221,10 @@ func ParseVlanIdConfig(res string) [][]string {
 }
 
 // GetVlanIdModel 은 Vlan에 대한 내용을 Model로 정리해서 제공합니다.
-func GetVlanIdBriefModel() (VlansReturnModel, error) {
+func GetVlanIdBriefModel() VlansReturnModel {
 	var Vlan []VlanModel
 	var VlansReturn VlansReturnModel
-	res, err := GetVlanBriefData()
-	if err != nil {
-		return VlansReturn, err
-	}
+	res := GetVlanBriefData()
 	for _, v := range strings.Split(res, "\r\n") {
 		raw_data := VlanExtract(v)
 		port_data := VlanPortExtract(v)
@@ -278,15 +275,12 @@ func GetVlanIdBriefModel() (VlansReturnModel, error) {
 		}
 	}
 	VlansReturn.Attr = Vlan
-	return VlansReturn, err
+	return VlansReturn
 }
 
-func GetVlanIdModel(vlan_id int) (VlanModel, error) {
+func GetVlanIdModel(vlan_id int) VlanModel {
 	var attr VlanModel
-	res, err := GetVlanIdConfig(vlan_id)
-	if err != nil {
-		return attr, err
-	}
+	res := GetVlanIdConfig(vlan_id)
 	raw_data := VlanExtract(res)
 	port_data := VlanPortExtract(res)
 	ip_data := IpaddressInVlanExtract(res)
@@ -331,12 +325,12 @@ func GetVlanIdModel(vlan_id int) (VlanModel, error) {
 		}
 
 	}
-	return attr, err
+	return attr
 }
 
 // ShowVlanIdConfig 는 한 개의 vlan 의 자세한 정보를 보여줍니다.
 func ShowVlanIdConfig(vlan_id int) {
-	res, _ := GetVlanIdConfig(vlan_id)
+	res := GetVlanIdConfig(vlan_id)
 	data := ParseVlanIdConfig(res)
 	// Make a table to display
 	makeTable(TitleVlanDetail, data)
@@ -344,11 +338,11 @@ func ShowVlanIdConfig(vlan_id int) {
 
 // AddVlanBridge은 vlan bridge를 추가합니다.
 func AddVlanBridge(vlan_id int) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d", vlan_id)
 	// make Message
@@ -358,18 +352,18 @@ func AddVlanBridge(vlan_id int) error {
 
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelVlanBridge은 vlan bridge를 삭제합니다.
 func DelVlanBridge(vlan_id int) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d", vlan_id)
 	// make Messgae
@@ -379,18 +373,18 @@ func DelVlanBridge(vlan_id int) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // AddVlanMember은 기 생성된 vlan bridge에 port를 추가합니다.
 func AddVlanMember(vlan_id int, interface_name string, tagging_status string) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s %s", vlan_id, interface_name, tagging_status)
 	// make Message
@@ -400,18 +394,18 @@ func AddVlanMember(vlan_id int, interface_name string, tagging_status string) er
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelVlanMember은 기 생성된 vlan bridge에 port를 삭제합니다.
 func DelVlanMember(vlan_id int, interface_name string, tagging_status string) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	msg := fmt.Sprintf("%d %s %s", vlan_id, interface_name, tagging_status)
 	// make Header
@@ -421,7 +415,7 @@ func DelVlanMember(vlan_id int, interface_name string, tagging_status string) er
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }

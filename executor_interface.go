@@ -26,12 +26,32 @@ var TitleVxfdb = []string{"MAC", "VxLAN", "VRF", "Destinaion IP", "VETP id", "St
  these information
 */
 
+func FdbExtract(raw string) []string {
+	re := regexp.MustCompile(`mac 0x(.+?) vlan (.+?) vrf (.+?) dev (.+?) \((.+?)\)`)
+
+	match := re.FindStringSubmatch(raw)
+	if len(match) > 0 {
+		return match[1:]
+	}
+	return match
+}
+
+func VxFdbExtract(raw string) []string {
+	re := regexp.MustCompile(`vx-mac 0x(.+?) vxlan (.+?) dst.r.ip 0x(.+?) vtepid (.+?) vrf (.+?) \((.+?)\)`)
+
+	match := re.FindStringSubmatch(raw)
+	if len(match) > 0 {
+		return match[1:]
+	}
+	return match
+}
+
 // GetFdbConfig 는 모든 L2FDB의 데이터를 리턴합니다.
-func GetFdbConfig() (string, error) {
+func GetFdbConfig() string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// make data format
 	var hdr []byte
@@ -41,62 +61,55 @@ func GetFdbConfig() (string, error) {
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
 
-	return res, err
+	return res
+}
+
+// GetFdbModel 는 모든 L2FDB의 데이터를 모델 형식으로 리턴합니다.
+func GetFdbModel() (VlanFDBReturn VlanFDBReturnModel) {
+	var VlanFDB []VlanFDBModel
+	vlanFDB := GetFdbConfig()
+
+	for _, v := range strings.Split(vlanFDB, "\r\n") {
+		raw_data := FdbExtract(v)
+		if len(raw_data) > 0 {
+			VlanID, _ := strconv.Atoi(raw_data[1])
+			VrfID, _ := strconv.Atoi(raw_data[2])
+			output := VlanFDBModel{
+				Mac:    raw_data[0],
+				VlanID: VlanID,
+				Vrf:    VrfID,
+				Ifname: raw_data[3],
+				Status: raw_data[4],
+			}
+			VlanFDB = append(VlanFDB, output)
+		}
+	}
+	VlanFDBReturn.Attr = VlanFDB
+	return VlanFDBReturn
 }
 
 // GetFdbVlanConfig 는 vlan에 설정된 L2FDB값을 리턴합니다.
-func GetFdbVlanConfig(vlan_id int) (string, error) {
+func GetFdbVlanConfig(vlan_id string) string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// make data format
 	var hdr []byte
 
 	cmd := uint8(LOXILIGHT_L2FDB_SHOW_VLAN)
-	vlanId := fmt.Sprintf("%d", vlan_id)
-	_, hdr = MakeMessage(cmd, vlanId)
+	_, hdr = MakeMessage(cmd, vlan_id)
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	//fmt.Printf("Receive %s\n", string(res))
-	return res, err
-}
-
-// GetFdbModel 는 모든 L2FDB의 데이터를 모델 형식으로 리턴합니다.
-func GetFdbModel() (VlanFDBReturn VlanFDBReturnModel, err error) {
-	var VlanFDB []VlanFDBModel
-	vlanFDB, err := GetFdbConfig()
-	if err != nil {
-		return VlanFDBReturn, err
-	}
-
-	for _, v := range strings.Split(vlanFDB, "\r\n") {
-		raw_data := FdbExtract(v)
-		if len(raw_data) > 0 {
-			VlanID, _ := strconv.Atoi(raw_data[1])
-			VrfID, _ := strconv.Atoi(raw_data[2])
-			output := VlanFDBModel{
-				Mac:    raw_data[0],
-				VlanID: VlanID,
-				Vrf:    VrfID,
-				Ifname: raw_data[3],
-				Status: raw_data[4],
-			}
-			VlanFDB = append(VlanFDB, output)
-		}
-	}
-	VlanFDBReturn.Attr = VlanFDB
-	return VlanFDBReturn, err
+	return res
 }
 
 // GetFdbVlanModel 는 특정 VLAN의 L2FDB의 데이터를 모델 형식으로 리턴합니다.
-func GetFdbVlanModel(VlanId int) (VlanFDBReturn VlanFDBReturnModel, err error) {
+func GetFdbVlanModel(VlanId string) (VlanFDBReturn VlanFDBReturnModel) {
 	var VlanFDB []VlanFDBModel
-	vlanFDB, err := GetFdbVlanConfig(VlanId)
-	if err != nil {
-		return VlanFDBReturn, err
-	}
+	vlanFDB := GetFdbVlanConfig(VlanId)
 	for _, v := range strings.Split(vlanFDB, "\r\n") {
 		raw_data := FdbExtract(v)
 		if len(raw_data) > 0 {
@@ -113,16 +126,61 @@ func GetFdbVlanModel(VlanId int) (VlanFDBReturn VlanFDBReturnModel, err error) {
 		}
 	}
 	VlanFDBReturn.Attr = VlanFDB
-	return VlanFDBReturn, err
+	return VlanFDBReturn
 
 }
 
-// GetVxFdbConfig 는  VxLAN관련 모든 FDB데이터를 리턴합니다.
-func GetVxFdbConfig() (string, error) {
+// GetFdbVxlanConfig 는 Vxlan에 설정된 L2FDB의 값을 리턴합니다.
+func GetFdbVxlanConfig(vxlan_id string) string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
+	}
+	// make data format
+	var hdr []byte
+
+	cmd := uint8(LOXILIGHT_VXFDB_SHOW_VXLAN)
+	_, hdr = MakeMessage(cmd, vxlan_id)
+	// send msg and return value
+	res := SendMessage(sock, hdr)
+	//fmt.Printf("Receive %s\n", string(res))
+	return res
+}
+
+// GetFdbVxlanModel 는 Vxlan에 설정된 L2FDB의 모델을 리턴합니다.
+func GetFdbVxlanModel(vxlan_id string) VxlanFDBReturnModel {
+	var VxlanFDB []VxlanFDBModel
+	var VxlanFDBReturn VxlanFDBReturnModel
+
+	vxlanFDB := GetFdbVxlanConfig(vxlan_id)
+
+	for _, v := range strings.Split(vxlanFDB, "\r\n") {
+		raw_data := VxFdbExtract(v)
+		if len(raw_data) > 0 {
+			VxlanID, _ := strconv.Atoi(raw_data[1])
+			VrfID, _ := strconv.Atoi(raw_data[4])
+			output := VxlanFDBModel{
+				Mac:     raw_data[0],
+				VxlanID: VxlanID,
+				Vrf:     VrfID,
+				DstIP:   HexToIPString(raw_data[2]),
+				VtepID:  raw_data[3],
+				Status:  raw_data[5],
+			}
+			VxlanFDB = append(VxlanFDB, output)
+		}
+	}
+	VxlanFDBReturn.Attr = VxlanFDB
+	return VxlanFDBReturn
+}
+
+// GetVxFdbConfig 는 VxLAN관련 FDB데이터를 리턴합니다.
+func GetVxFdbConfig() string {
+	sock, err := GetConnection(LoxilightMgmtIp)
+	if err != nil {
+		fmt.Println("Please check your Core APP and CLI network status")
+		return ""
 	}
 	cmd := uint8(LOXILIGHT_VXFDB_SHOW_ALL)
 	_, hdr := MakeMessage(cmd, "")
@@ -131,83 +189,33 @@ func GetVxFdbConfig() (string, error) {
 	//fmt.Printf("Receive %s\n", string(res))
 	CloseConnection(sock)
 
-	return res, err
+	return res
 }
 
-// GetVxFdbModel 는 VxLAN관련 모든 FDB데이터를 모델 형식으로 리턴합니다.
-func GetVxFdbModel() (VxlanFDBReturnModel, error) {
+// GetVxFdbModel 는 VxLAN관련 FDB데이터를 모델 형식으로 리턴합니다.
+func GetVxFdbModel() VxlanFDBReturnModel {
 	var VxlanFDB []VxlanFDBModel
 	var VxlanFDBReturn VxlanFDBReturnModel
 
-	vxlanFDB, err := GetVxFdbConfig()
-	if err != nil {
-		return VxlanFDBReturn, err
-	}
+	vxlanFDB := GetVxFdbConfig()
 	for _, v := range strings.Split(vxlanFDB, "\r\n") {
 		raw_data := VxFdbExtract(v)
 		if len(raw_data) > 0 {
 			VxlanID, _ := strconv.Atoi(raw_data[1])
-			VrfID, _ := strconv.Atoi(raw_data[2])
+			VrfID, _ := strconv.Atoi(raw_data[4])
 			output := VxlanFDBModel{
 				Mac:     raw_data[0],
 				VxlanID: VxlanID,
 				Vrf:     VrfID,
-				DstIP:   raw_data[3],
-				VtepID:  raw_data[4],
+				DstIP:   HexToIPString(raw_data[2]),
+				VtepID:  raw_data[3],
 				Status:  raw_data[5],
 			}
 			VxlanFDB = append(VxlanFDB, output)
 		}
 	}
 	VxlanFDBReturn.Attr = VxlanFDB
-	return VxlanFDBReturn, err
-}
-
-// GetFdbVxlanConfig 는 Vxlan에 설정된 L2FDB의 값을 리턴합니다.
-func GetFdbVxlanConfig(vxlan_id int) (string, error) {
-	sock, err := GetConnection(LoxilightMgmtIp)
-	if err != nil {
-		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
-	}
-	// make data format
-	var hdr []byte
-	vxlanId := fmt.Sprintf("%d", vxlan_id)
-	cmd := uint8(LOXILIGHT_VXFDB_SHOW_VXLAN)
-	_, hdr = MakeMessage(cmd, vxlanId)
-	// send msg and return value
-	res := SendMessage(sock, hdr)
-	//fmt.Printf("Receive %s\n", string(res))
-	return res, err
-}
-
-// GetFdbVxlanModel 는 Vxlan에 설정된 L2FDB의 모델을 리턴합니다.
-func GetFdbVxlanModel(vxlan_id int) (VxlanFDBReturnModel, error) {
-	var VxlanFDB []VxlanFDBModel
-	var VxlanFDBReturn VxlanFDBReturnModel
-
-	vxlanFDB, err := GetFdbVxlanConfig(vxlan_id)
-	if err != nil {
-		return VxlanFDBReturn, err
-	}
-	for _, v := range strings.Split(vxlanFDB, "\r\n") {
-		raw_data := VxFdbExtract(v)
-		if len(raw_data) > 0 {
-			VxlanID, _ := strconv.Atoi(raw_data[1])
-			VrfID, _ := strconv.Atoi(raw_data[2])
-			output := VxlanFDBModel{
-				Mac:     raw_data[0],
-				VxlanID: VxlanID,
-				Vrf:     VrfID,
-				DstIP:   raw_data[3],
-				VtepID:  raw_data[4],
-				Status:  raw_data[5],
-			}
-			VxlanFDB = append(VxlanFDB, output)
-		}
-	}
-	VxlanFDBReturn.Attr = VxlanFDB
-	return VxlanFDBReturn, err
+	return VxlanFDBReturn
 }
 
 func ParseFdbConfig(res string) [][]string {
@@ -244,35 +252,17 @@ func ParseVxFdbConfig(res string) [][]string {
 
 // ShowFdbConfig 는 모든 L2FDB의 값을 보여줍니다.
 func ShowFdbConfig() {
-	res, _ := GetFdbConfig()
+	res := GetFdbConfig()
 	data := ParseFdbConfig(res)
 	fmt.Println("FDB Table")
 	makeTable(TitleFdb, data)
 
-	res2, _ := GetVxFdbConfig()
+	res2 := GetVxFdbConfig()
 	data2 := ParseVxFdbConfig(res2)
 	fmt.Println("VxLAN FDB Table")
 	makeTable(TitleVxfdb, data2)
 }
-func FdbExtract(raw string) []string {
-	re := regexp.MustCompile("mac (.+?) vlan (.+?) vrf (.+?) dev (.+?) \\((.+?)\\) (.+?)")
 
-	match := re.FindStringSubmatch(raw)
-	if len(match) > 0 {
-		return match[1:]
-	}
-	return match
-}
-
-func VxFdbExtract(raw string) []string {
-	re := regexp.MustCompile("vx-mac (.+?) vxlan (.+?) dst.r.ip (.+?) vtepid (.+?) vrf (.+?) \\((.+?)\\)")
-
-	match := re.FindStringSubmatch(raw)
-	if len(match) > 0 {
-		return match[1:]
-	}
-	return match
-}
 func ParseFdbVlanConfig(res string) [][]string {
 
 	var row_data []string
@@ -291,8 +281,8 @@ func ParseFdbVlanConfig(res string) [][]string {
 }
 
 // ShowFdbVlanConfig는 vlan에 설정된 L2FDB의 값을 보여줍니다.
-func ShowFdbVlanConfig(vlan_id int) {
-	res, _ := GetFdbVlanConfig(vlan_id)
+func ShowFdbVlanConfig(vlan_id string) {
+	res := GetFdbVlanConfig(vlan_id)
 	data := ParseFdbVlanConfig(res)
 	makeTable(TitleFdb, data)
 }
@@ -314,8 +304,8 @@ func ParseFdbVxlanConfig(res string) [][]string {
 }
 
 // ShowFdbVxlanConfig는 vxlan에 설정된 L2FDB의 값을 보여줍니다.
-func ShowFdbVxlanConfig(vxlan_id int) {
-	res, _ := GetFdbVxlanConfig(vxlan_id)
+func ShowFdbVxlanConfig(vxlan_id string) {
+	res := GetFdbVxlanConfig(vxlan_id)
 	data := ParseFdbVxlanConfig(res)
 	makeTable(TitleVxfdb, data)
 }
@@ -410,11 +400,11 @@ func ShowInterfaceOneStatus(interface_name string) {
 
 // AddFdbConfig 는 vlan id를 기반으로 L2FDB 주소를 추가합니다.
 func AddFdbConfig(vlan_id string, mac_address string, interface_name string) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// make data format
 
@@ -425,18 +415,18 @@ func AddFdbConfig(vlan_id string, mac_address string, interface_name string) err
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelFdbConfig 는 vlan id를 기반으로 L2FDB 주소를 삭제합니다.
 func DelFdbConfig(vlan_id string, mac_address string, interface_name string) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// make data format
 	cmd := uint8(LOXILIGHT_L2FDB_DEL)
@@ -447,18 +437,18 @@ func DelFdbConfig(vlan_id string, mac_address string, interface_name string) err
 
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // AddVxfdbConfig 는 vxlan id를 기반으로 L2FDB 주소를 추가합니다.
 func AddVxfdbConfig(vxlan_id int, mac_address string, ip_address string) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// make data format
 
@@ -470,18 +460,18 @@ func AddVxfdbConfig(vxlan_id int, mac_address string, ip_address string) error {
 
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
 // DelVxfdbConfig 는 vxlan id를 기반으로 L2FDB 주소를 삭제합니다.
 func DelVxfdbConfig(vxlan_id int, mac_address string, ip_address string) error {
-
+	var returnError error = nil
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	// make data format
 	cmd := uint8(LOXILIGHT_VXFDB_DEL)
@@ -492,16 +482,16 @@ func DelVxfdbConfig(vxlan_id int, mac_address string, ip_address string) error {
 
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return err
+	return returnError
 }
 
-func GetVifConfig() (string, error) {
+func GetVifConfig() string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// make data format
 	var hdr []byte
@@ -512,13 +502,13 @@ func GetVifConfig() (string, error) {
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
 
-	return res, err
+	return res
 }
-func GetVifOneConfig(IfName string) (string, error) {
+func GetVifOneConfig(IfName string) string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// make data format
 	var hdr []byte
@@ -529,7 +519,7 @@ func GetVifOneConfig(IfName string) (string, error) {
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
 
-	return res, err
+	return res
 }
 
 func VifExtract(raw string) []string {
@@ -549,13 +539,10 @@ func IpaddressInVifExtract(raw string) []string {
 	return sp_data
 }
 
-func GetVifModel() (VifReturnModel, error) {
+func GetVifModel() VifReturnModel {
 	var Vif []VifModel
 	var VifReturn VifReturnModel
-	res, err := GetVifConfig()
-	if err != nil {
-		return VifReturn, err
-	}
+	res := GetVifConfig()
 	raw := strings.Split(res, "\r\n\r\n")
 	// 각각의 기준이 VIF 한개 기준.
 	for _, rd := range raw {
@@ -578,15 +565,12 @@ func GetVifModel() (VifReturnModel, error) {
 		}
 	}
 	VifReturn.Attr = Vif
-	return VifReturn, err
+	return VifReturn
 }
 
-func GetVifOneModel(IfName string) (VifModel, error) {
+func GetVifOneModel(IfName string) VifModel {
 	var Vif VifModel
-	res, err := GetVifOneConfig(IfName)
-	if err != nil {
-		return Vif, err
-	}
+	res := GetVifOneConfig(IfName)
 	raw := strings.Split(res, "\r\n\r\n")
 	for _, rd := range raw {
 		raw_data := VifExtract(rd)
@@ -606,5 +590,5 @@ func GetVifOneModel(IfName string) (VifModel, error) {
 			}
 		}
 	}
-	return Vif, err
+	return Vif
 }

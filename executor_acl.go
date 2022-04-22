@@ -20,14 +20,11 @@ func AclExtract(raw string) []string {
 }
 
 // GetAclModel 는 필터 스트링을 ACL모델로 변경합니다.
-func GetAclModel() (ACLReturnModels, error) {
+func GetAclModel() ACLReturnModels {
 
 	var Acl []ACLReturnModel
 	var AclReturn ACLReturnModels
-	acls, err := GetAclConfig()
-	if err != nil {
-		return AclReturn, err
-	}
+	acls := GetAclConfig()
 	// filter info
 	// T0,ip,ipprot:0x13,dip:0.2.3.1/23,sip:1.31.4.1/32,sport:1234,dport:123,iif:1,act-drop
 	// Action type :  act-snat: 0x1020304:1234, act-dnat: 0x1020304:1234, act-allow, act-drop
@@ -51,15 +48,15 @@ func GetAclModel() (ACLReturnModels, error) {
 
 	}
 	AclReturn.Attr = Acl
-	return AclReturn, err
+	return AclReturn
 }
 
 // GetAclConfig 모든 Nat의 정보를 리턴합니다.
-func GetAclConfig() (string, error) {
+func GetAclConfig() string {
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return "", err
+		return ""
 	}
 	// Send msg and return value
 
@@ -67,7 +64,7 @@ func GetAclConfig() (string, error) {
 	_, hdr := MakeMessage(cmd, "")
 	res := SendMessage(sock, hdr)
 	CloseConnection(sock)
-	return res, err
+	return res
 
 }
 
@@ -90,7 +87,7 @@ func ParseAclConfig(res string) [][]string {
 // ShowAclConfig 는 모든 Nat 의 간략한 정보를 CLI 테이블로 변환하여 보여줍니다.
 func ShowAclConfig() {
 	// Get_data
-	res, _ := GetAclConfig()
+	res := GetAclConfig()
 	data := ParseAclConfig(res)
 	// Make a table to display
 	makeTable(TitleAcl, data)
@@ -98,11 +95,12 @@ func ShowAclConfig() {
 
 // AddAclConfig 는 스태틱 라우팅 테이블 엔트리를 추가합니다.
 func AddAclConfig(acl ACLModel) (string, error) {
+	var returnError error = nil
 	var returnuuid string
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return returnuuid, err
+		return returnuuid, returnError
 	}
 	cmd := uint8(LOXILIGHT_ACL_ADD)
 
@@ -119,9 +117,9 @@ func AddAclConfig(acl ACLModel) (string, error) {
 	if IsValidUUID(res) {
 		returnuuid = strings.TrimSpace(res)
 	} else {
-		err = errors.New(res)
+		returnError = errors.New(res)
 	}
-	return returnuuid, err
+	return returnuuid, returnError
 }
 
 func IsValidUUID(uuid string) bool {
@@ -203,15 +201,15 @@ func MakeAclMessage(acl ACLModel) (matches string, err error) {
 
 // DelAclConfig 는 스태틱 라우팅 테이블 엔트리를 삭제합니다.
 func DelAclConfig(UUID string) error {
-	var err error = nil
+	var returnError error = nil
 	if strings.TrimSpace(UUID) == "" {
-		err = errors.New("Empty UUID come in ")
-		return err
+		returnError = errors.New("Empty UUID come in ")
+		return returnError
 	}
 	sock, err := GetConnection(LoxilightMgmtIp)
 	if err != nil {
 		fmt.Println("Please check your Core APP and CLI network status")
-		return err
+		return returnError
 	}
 	cmd := uint8(LOXILIGHT_ACL_DEL)
 
@@ -221,7 +219,34 @@ func DelAclConfig(UUID string) error {
 	// send msg and return value
 	res := SendMessage(sock, hdr)
 	if len(res) != 0 {
-		err = errors.New(res)
+		returnError = errors.New(res)
+	}
+	return returnError
+}
+
+// DelAclAllConfig 모든 ACL의 정보를 삭제합니다.
+func DelAclAllConfig() error {
+	var msg []byte
+	sock, err := GetConnection(LoxilightMgmtIp)
+	if err != nil {
+		fmt.Println("Please check your Core APP and CLI network status")
+		return err
+	}
+	// Send msg and return value
+
+	cmd := uint8(LOXILIGHT_ACL_DEL_ALL)
+	_, hdr := MakeMessage(cmd, "")
+	if err = sock.Send(hdr); err != nil {
+		die("can't send message on push socket: %s", err.Error())
+	}
+	if msg, err = sock.Recv(); err != nil {
+		die("can't receive date: %s", err.Error())
+	}
+	sock.Close()
+	if msg[1] == LOXILIGHT_SERVICE_SUCCESS {
+		err = nil
+	} else {
+		err = errors.New("Error is occur")
 	}
 	return err
 }
